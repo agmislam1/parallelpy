@@ -61,12 +61,37 @@ def extracted_loops(node, program_info : ProgramInformation):
                             input_dataset = "random" # TODO CHANGE THIS ONE AS WELL
                         #input_dataset = ""
                         
-                        udf_calls(program_info.get_function_node_by_name(funcName), "rExpression",final_target, program_info, min_line_no, max_line_no, input_dataset)
+                        
+                        udf_calls("",program_info.get_function_node_by_name(funcName), "rExpression",final_target, program_info, min_line_no, max_line_no, input_dataset)
                     else:
                         final_target = assignmentInfo.targets[0].value.id
-                        udf_calls(program_info.get_function_node_by_name(funcName), "mExpression", final_target, program_info, min_line_no, max_line_no)
+
+                        ## get the parameters of the function call for dask
+
+                        funcinput = ""
+                        mapfunction = ""
+                        for i in range(len(v_node.args)):
+                            if(i!=0):
+                                funcinput+=v_node.args[i].id+","
+                            ++i
+
+                        if len(funcinput)>0:
+                            if funcinput[len(funcinput)-1] == ",":
+                                funcinput = funcinput[:-1]
+                        mapfunc = funcName
+                        
+                        if len(funcinput)>0:
+                            mapfunc = mapfunc + "," + funcinput
+
+                        print(mapfunc)
+
+                        # New parameter func_node added to the following call
+                        
+                        udf_calls(mapfunc,program_info.get_function_node_by_name(funcName), "mExpression", final_target, program_info, min_line_no, max_line_no)
                     break
                 if isinstance(v_node, ast.Name) and isinstance(v_node.ctx, ast.Store):
+
+                    
                     if not temp_f.allVariables.__contains__(v_node.id):
                         print(v_node.id)
                         temp_f.add_variables(v_node.id)

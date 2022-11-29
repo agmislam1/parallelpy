@@ -101,10 +101,13 @@ class CustomLoopInformation:
     complexExpression = ""
 
     def __init__(self, call_type, input_dataset, program_info):
-        print(call_type)
+        
         self.udf_call_type = call_type
         self.input_dataset = input_dataset
         self.program_info = program_info
+        print(call_type)
+        
+        
 
     # check Number
     def variable_check(self, operand):
@@ -121,11 +124,17 @@ class CustomLoopInformation:
     def extraction_if_else(self, node: ast.If, mapper_flag):
         
         case = 0
+        print("nnnnnnnnnnnnnnnnnnnnnnn")
+       
+        #if node.orelse:
         if node.orelse:
+            
+
             self.filter_info.has_else = True
             flag = True
             while flag:
-                if self.udf_call_type is "mExpression":
+                #if self.udf_call_type is "mExpression":
+                if self.udf_call_type == "mExpression":
                     self.mapper_only(node.body[0].value)
 
                 if isinstance(node.test, ast.Compare):
@@ -146,7 +155,8 @@ class CustomLoopInformation:
                     flag = False
 
         else:
-            if self.udf_call_type is "mExpression":
+            #if self.udf_call_type is "mExpression":
+            if self.udf_call_type == "mExpression":
                 self.mapper_only(node.body[0].value)
             condition = self.convert_condition(node.test)
             tmp_filter = EachFilter(condition, "", case)
@@ -154,13 +164,27 @@ class CustomLoopInformation:
             case += 1
 
     def check_for_filter(self, exp, flag):
+    
+    
+        
+        
         if exp is None:
+            
             return
         else:
             for tmp in ast.walk(exp):
+
+                
+                
+                self.filter_info.has_if = True
+                self.extraction_if_else(tmp, flag)
+
+                print("--------////////////////////-----------")
+                print(exp)
+
                 if isinstance(tmp, ast.If):
-                    self.filter_info.has_if = True
-                    self.extraction_if_else(tmp, flag)
+                    
+                    
                     break
 
     def get_condition_for_else(self, input_var):
@@ -209,7 +233,11 @@ class CustomLoopInformation:
         if isinstance(operation.right, str):
 
             # Code for daskbag (only sum considered)
-            s = ".map(lambda accum," + operation.right + ": accum" + operation.operation + str(operation.right) + ")"
+            
+            print("-----------------")
+            
+            s = ".fold("+self.program_info.all_functions[0].name+")"
+            #s = ".map(lambda accum," + operation.right + ": accum" + operation.operation + str(operation.right) + ")"
             #s =  ".reduction(sum,sum).compute()"
 
             # Uncomment the below line for spark
@@ -221,9 +249,11 @@ class CustomLoopInformation:
 
     def mapper_filter_ops(self, exp):
         codelist = self.combine_mapper_filter()
-        if self.udf_call_type is "mExpression":
+        #if self.udf_call_type is "mExpression":
+        if self.udf_call_type == "mExpression":
             s = self.check_has_else()
-            if s is not -1:
+            #if s is not -1:
+            if s != -1:
                 codelist.append(s)
         return codelist
 
@@ -310,7 +340,8 @@ class CustomLoopInformation:
 
     def reducer_binary_ops(self, exp):
         print("Mapper and Reducer")
-        if len(exp.args.args) is 3:
+        #if len(exp.args.args) is 3:
+        if len(exp.args.args) == 3:
             self.reducer_binary_multiple_map(exp)
             return 2
         for tmp_node in ast.walk(exp):
@@ -326,11 +357,16 @@ class CustomLoopInformation:
         return 1
 
     def classify_udf(self, node):
-        if self.udf_call_type is "mExpression" and self.filter_info.has_if is False:
+        
+        #if self.udf_call_type is "mExpression" and self.filter_info.has_if is False:
+        if self.udf_call_type == "mExpression" and self.filter_info.has_if == False:
             self.mapper_only(node)
+            
+
             return 0
 
-        elif self.udf_call_type is "mExpression" and self.filter_info.has_if is True:
+        #elif self.udf_call_type is "mExpression" and self.filter_info.has_if is True:
+        elif self.udf_call_type == "mExpression" and self.filter_info.has_if == True:
             self.final_codegen_value = self.mapper_filter_ops(node)
             return 1
         else:

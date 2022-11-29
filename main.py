@@ -5,15 +5,19 @@ def main():
     #filepath = "../examples/test_reducer.py"
     
     #filepath = "../examples/sum.py"
-    #filepath = "../examples/test_reducer.py"
+    #filepath = "../examples/test_reducer.py"  # does not work
     #filepath = "../examples/reducer_main.py"
+    #filepath = "../examples/reducer_test.py"
 
     #filepath = "../examples/mapperonly.py"
-    filepath = "../examples/mapperonly_1.py"
+    #filepath = "../examples/mapperonly_1.py"
+    #filepath = "../examples/mapperonly_failed.py"
 
     #filepath = "../examples/min_a.py"
     #filepath = "../examples/max_a.py"
     #filepath = "../examples/count.py"
+
+    filepath = "../examples/reducer_example1.py"
     
     program_information = models.ProgramInformation()
     extraction.program_analysis(program_information, filepath)
