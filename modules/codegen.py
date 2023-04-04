@@ -1,8 +1,21 @@
 import ast
+import sys
 from modules.models import LoopReplace
 
 daskbag_import = "daskbag"
 writemarker = 0
+
+
+def processParams(args):
+
+    workers = 32
+    partition = 100
+    # if parameters are not passed, default settings will be used
+    if(len(args)>=2):
+        workers = int(args[0])
+        partition = int(args[1])
+     
+    return workers, partition
 
 # Lets start codegen with no verification or anything just to test the my analysis works or not
 def mapper_reducer_generation(program_information):
@@ -45,7 +58,9 @@ def mapper_reducer_generation(program_information):
                        
                         changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
-                        s += ops.left + '=' + ops.left + postfix + '.sum().compute()'
+                        
+                        s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.sum().compute()'
+                        #s += ops.left + '=' + ops.left + postfix + '.sum().compute()'
                         list_of_new_operations.append(s)
 
                         if isinstance(ops.op, ast.Sub):
@@ -56,7 +71,9 @@ def mapper_reducer_generation(program_information):
                     elif isinstance(ops.op, ast.Add) and ops.ops == "COUNT":
                         changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
-                        s += ops.left + '=' + ops.left + postfix + '.count().compute()'
+                        
+                        s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.count().compute()'
+                        #s += ops.left + '=' + ops.left + postfix + '.count().compute()'
                         #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
                         #list_of_new_operations.append(changeRDD)
                         #s += ops.left + '=' + ops.left + '.count()'
@@ -66,7 +83,7 @@ def mapper_reducer_generation(program_information):
                         
                         changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
-                        s += ops.left + '=' + ops.left + postfix + '.min().compute()'
+                        s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.min().compute()'
                         #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
                         #list_of_new_operations.append(changeRDD)
                         #s += ops.left + '=' + ops.left + '.max()'
@@ -76,7 +93,7 @@ def mapper_reducer_generation(program_information):
                         
                         changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
-                        s += ops.left + '=' + ops.left + postfix + '.max().compute()'
+                        s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.max().compute()'
                         #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
                         #list_of_new_operations.append(changeRDD)
                         #s += ops.left + '=' + ops.left + '.min()'
@@ -106,6 +123,16 @@ def codeGen(replace, filepath):
     #fout.write("import pyspark as ps\n")
 
     fout.write("import dask.bag as "+ daskbag_import + " \n\n")
+    fout.write("from dask.distributed import Client\n")
+    fout.write("import json\n")
+
+    args = sys.argv[1:]    
+    # read the dask configuration parameters
+    workers, partition = processParams(args)
+
+    
+    fout.write("workers="+ str(workers)+"\n")
+    fout.write("partition="+ str(partition)+"\n")
 
     
     for i, line in enumerate(fin):

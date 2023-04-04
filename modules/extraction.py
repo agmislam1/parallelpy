@@ -30,6 +30,7 @@ def variable_check(operand):
 
 def extracted_loops(node, program_info : ProgramInformation):
     if isinstance(node, ast.For):
+       
         min_line_no, max_line_no = _compute_interval(node)
         temp_f = LoopInformation(min_line_no, max_line_no)
         has_compare = check_for_compare(node)
@@ -44,13 +45,15 @@ def extracted_loops(node, program_info : ProgramInformation):
             codegen_list = temp_f.nested_loop_info.convert_operations_mapper_reducer()
             code_gen_file(program_info.filepath, min_line_no-1, max_line_no+1, codegen_list, 1)
             print(temp_f)
+            
             return -2
         else:
             for v_node in ast.walk(node):
                 # print(node) get all variables
                # Line 45 - 59 comment
                 
-                if isinstance(v_node, ast.Call) and v_node.func.id is not "enumerate":
+                if isinstance(v_node, ast.Call) and v_node.func.id != "enumerate":
+                    
                     funcName = v_node.func.id
                     assignmentInfo = node.body.pop(0)
                     if isinstance(assignmentInfo.targets[0], ast.Name):
@@ -97,6 +100,7 @@ def extracted_loops(node, program_info : ProgramInformation):
                         temp_f.add_variables(v_node.id)
                 # Only for Sum and Count
                 if not has_compare:
+                    
                     if isinstance(v_node, ast.Assign):
                         print(v_node)
                         if isinstance(v_node.value, ast.BinOp):
@@ -114,6 +118,7 @@ def extracted_loops(node, program_info : ProgramInformation):
                             else:
                                 temp_f.add_operations(OperationInformation(left, op, right, target, "ADD"))
                 else:
+                    
                     if isinstance(v_node, ast.If):
                         compare_info = CompareInformation(v_node.test.left.id, v_node.test.ops[0], v_node.test.comparators[0].id)
                         temp_f.add_comapre_information(compare_info)
@@ -152,6 +157,7 @@ def extracted_loops1(node, program_info : ProgramInformation):
             
             if not has_compare:
                         
+                        
                         if isinstance(v_node, ast.Assign):
                             
                             if isinstance(v_node.value, ast.BinOp):
@@ -165,12 +171,14 @@ def extracted_loops1(node, program_info : ProgramInformation):
                                     right = temp
                                
                                 print(left, op, right, target)
+                                
                                 if right == "1" or right == 1:
                                     temp_f.add_operations(OperationInformation(left, op, right, target, "COUNT"))
                                 else:
+                                    
                                     temp_f.add_operations(OperationInformation(left, op, right, target, "ADD"))
             else:
-                                    
+                                   
                                     if isinstance(v_node, ast.If):
                                         
                                         compare_info = CompareInformation(v_node.test.left.id, v_node.test.ops[0], v_node.test.comparators[0].id)
@@ -262,8 +270,8 @@ def program_analysis(program_information : ProgramInformation, filepath):
         tree = ast.parse(fin.read())
     for x in ast.walk(tree):
 
-        if isinstance(x, ast.With):
-            extracted_fileinfo(x,program_information)
+        #if isinstance(x, ast.With):
+        #    extracted_fileinfo(x,program_information)
 
         if isinstance(x, ast.FunctionDef):
             function_info = funtion_analysis(x, program_information)

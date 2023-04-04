@@ -124,7 +124,7 @@ class CustomLoopInformation:
     def extraction_if_else(self, node: ast.If, mapper_flag):
         
         case = 0
-        print("nnnnnnnnnnnnnnnnnnnnnnn")
+        
        
         #if node.orelse:
         if node.orelse:
@@ -243,8 +243,14 @@ class CustomLoopInformation:
             # Uncomment the below line for spark
             #s = ".reduce(lambda accum," + operation.right + ": accum" + operation.operation + str(operation.right) + ")"
         else:
+
+            # Code for daskbag
+            s = ".fold("+self.program_info.all_functions[0].name+")"
+
+            # Uncomment the below line for spark
             s = ".reduce(lambda accum," + operation.left + ": accum " + operation.operation + operation.left + operation.operation + str(
                 operation.right) + ")"
+            
         self.mapper_list.add_mapper(s)
 
     def mapper_filter_ops(self, exp):

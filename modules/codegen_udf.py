@@ -1,4 +1,17 @@
+import sys
 
+
+def processParams(args):
+
+    workers = 32
+    partition = 100
+    # if parameters are not passed, default settings will be used
+    if(len(args)>=2):
+        workers = int(args[0])
+        partition = int(args[1])
+     
+    return workers, partition
+   
 def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
     
     count = 0
@@ -23,11 +36,11 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
 
         ## For Dask
        
-        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + target + ")"
+        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + target + ",npartitions=partition)"
     else:
         # Code added for dask bag
        
-        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + input_data + ")"
+        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + input_data + ",npartitions=partition)"
 
         #Uncomment the below line for pyspark
         #tmp = final_RDD + str(count) + " = sc.parallelize(" + input_data + ")"
@@ -46,7 +59,7 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
         complete_code.append(tmp)
         
         # Code added for dask bag (no option for pyspark)
-        tmp = target + " = " + finalbag + str(count) + ".compute()"
+        tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count) + ".compute(num_workers=workers)"
 
     else:
        
@@ -66,7 +79,7 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
 
 
         # Code added for dask bag
-        tmp = target + " = " + finalbag + str(count - 1) + mapper_operations[-1] + ".compute()"
+        tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count - 1) + mapper_operations[-1] + ".compute(num_workers=workers)"
         #Uncomment the below line for pyspark
         #tmp = target + " = " + final_RDD + str(count - 1) + mapper_operations[-1]
 
@@ -171,7 +184,17 @@ def code_gen_file(filepath, intial_num, final_num, codelist, type, function_def=
     cnt = 0
     # import dask bag
     fout.write("import dask.bag as daskbag\n")
+    fout.write("from dask.distributed import Client\n")
+    fout.write("import json\n")
+    
 
+    args = sys.argv[1:]    
+    # read the dask configuration parameters
+    workers, partition = processParams(args)
+
+    
+    fout.write("workers="+ str(workers)+"\n")
+    fout.write("partition="+ str(partition)+"\n")
 
     #Uncomment the below line for pyspark
     #fout.write("import pyspark as ps\n")
