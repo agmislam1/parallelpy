@@ -9,13 +9,13 @@ writemarker = 0
 def processParams(args):
 
     workers = 32
-    partition = 100
+    #partition = 100
     # if parameters are not passed, default settings will be used
-    if(len(args)>=2):
+    if(len(args)>=1):
         workers = int(args[0])
-        partition = int(args[1])
+        #partition = int(args[1])
      
-    return workers, partition
+    return workers
 
 # Lets start codegen with no verification or anything just to test the my analysis works or not
 def mapper_reducer_generation(program_information):
@@ -30,6 +30,12 @@ def mapper_reducer_generation(program_information):
     fixvariable = "numbers"
     
     retval=[]
+
+    bagimport = daskbag_import
+    inputfilename = "input.csv"
+    daskread = ".read_text('" + inputfilename +"',blocksize=blocksize).str.strip()\n"
+    daskmap = ".map(lambda x: [int(num) for num in x.split(',')])\n"
+    daskflatten = ".flatten()\n\n"
 
     # read file info
     for files in program_information.fileinfo:
@@ -53,10 +59,16 @@ def mapper_reducer_generation(program_information):
                 
                 
                 for ops in iteration.operations:
-                    
+                                      
                     if (isinstance(ops.op, ast.Add) or isinstance(ops.op, ast.Sub)) and ops.ops == "ADD":
                        
-                        changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        changeDASK = ops.left + postfix +" = "+ bagimport + daskread
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskmap
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskflatten
+                        
+                        print(functions.return_variable)
                         list_of_new_operations.append(changeDASK)
                         
                         s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.sum().compute()'
@@ -69,7 +81,11 @@ def mapper_reducer_generation(program_information):
 
                         s = ''
                     elif isinstance(ops.op, ast.Add) and ops.ops == "COUNT":
-                        changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        changeDASK = ops.left + postfix +" = "+ bagimport + daskread
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskmap
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskflatten
+
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
                         
                         s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.count().compute()'
@@ -81,7 +97,11 @@ def mapper_reducer_generation(program_information):
                         s = ''
                     elif isinstance(ops.op, ast.Lt) and ops.ops == "MIN":
                         
-                        changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        changeDASK = ops.left + postfix +" = "+ bagimport + daskread
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskmap
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskflatten
+
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
                         list_of_new_operations.append(changeDASK)
                         s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.min().compute()'
                         #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
@@ -91,14 +111,44 @@ def mapper_reducer_generation(program_information):
                         s = ''
                     elif isinstance(ops.op, ast.Gt) and ops.ops == "MAX":
                         
-                        changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        
+                        changeDASK = ops.left + postfix +" = "+ bagimport + daskread
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskmap
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskflatten
+
+                        
                         list_of_new_operations.append(changeDASK)
                         s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.max().compute()'
                         #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
                         #list_of_new_operations.append(changeRDD)
                         #s += ops.left + '=' + ops.left + '.min()'
                         list_of_new_operations.append(s)
+                        s = ''
+
+                    elif (isinstance(ops.op, ast.Add) or isinstance(ops.op, ast.Sub)) and ops.ops == "AVG":
+
+                       
+                        
+                        #changeDASK = ops.left + postfix + '= ' + daskbag_import + '.from_sequence(list(' + fixvariable + '))'
+                        
+                        changeDASK = ops.left + postfix +" = "+ bagimport + daskread
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskmap
+                        changeDASK += "\t" + ops.left + postfix +" = " + ops.left + postfix +  daskflatten
+
+                        
+                        list_of_new_operations.append(changeDASK)
+                        s += "with Client(n_workers=workers) as client:\n\t\t" + ops.left + '=' + ops.left + postfix + '.mean().compute()'
+                        #changeRDD = ops.left + '_RDD = sc.parallelize(' + 'numbers' + ')'
+                        #list_of_new_operations.append(changeRDD)
+                        #s += ops.left + '=' + ops.left + '.min()'
+                        list_of_new_operations.append(s)
+                        if len(functions.return_variable)>=1:                            
+                            s= "return "+ functions.return_variable[0]
+                            list_of_new_operations.append(s)
                     s = ''
+
+
     #retval.append(LoopReplace(initial_number, final_number, list_of_new_operations))
     #return retval
     return LoopReplace(initial_number, final_number, list_of_new_operations,0)
@@ -128,11 +178,12 @@ def codeGen(replace, filepath):
 
     args = sys.argv[1:]    
     # read the dask configuration parameters
-    workers, partition = processParams(args)
+    workers = processParams(args)
 
     
     fout.write("workers="+ str(workers)+"\n")
-    fout.write("partition="+ str(partition)+"\n")
+    #fout.write("partition="+ str(partition)+"\n")
+    fout.write("blocksize = '256MB'\n")
 
     
     for i, line in enumerate(fin):

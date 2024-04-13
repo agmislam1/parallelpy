@@ -69,7 +69,7 @@ class BinOps:
     right = ""
     target = ""
     operation = ""
-    operator = ""
+    operator = None
 
     def __init__(self, left, right, target, operator):
         self.left = left
@@ -78,6 +78,8 @@ class BinOps:
         self.operator = operator
 
     def get_operation_from_operator(self):
+        
+        
         if isinstance(self.operator, ast.Add):
             self.operation = "+"
         elif isinstance(self.operator, ast.Sub):
@@ -102,10 +104,11 @@ class CustomLoopInformation:
 
     def __init__(self, call_type, input_dataset, program_info):
         
+        
         self.udf_call_type = call_type
         self.input_dataset = input_dataset
         self.program_info = program_info
-        print(call_type)
+        
         
         
 
@@ -125,7 +128,7 @@ class CustomLoopInformation:
         
         case = 0
         
-       
+        
         #if node.orelse:
         if node.orelse:
             
@@ -179,9 +182,6 @@ class CustomLoopInformation:
                 self.filter_info.has_if = True
                 self.extraction_if_else(tmp, flag)
 
-                print("--------////////////////////-----------")
-                print(exp)
-
                 if isinstance(tmp, ast.If):
                     
                     
@@ -224,32 +224,60 @@ class CustomLoopInformation:
         return tmp_s
 
     def mapper_only_codegen(self, operation: BinOps):
+        
         s = ".map(lambda " + operation.left + ": " + str(operation.left) + operation.operation + str(
             operation.right) + ")"
+
+        
         self.mapper_list.add_mapper(s)
         return
 
     def reduce_codegen(self, operation: BinOps):
+
+        # Get the variable names
+        varlen = len(self.program_info.all_functions[-1].input_variable[0])
+        
+        vars = 1        
+        mapParams = ""
+
+        while vars<varlen:
+            var1 = self.program_info.all_functions[-1].input_variable[0][vars].arg
+            
+            if vars==1:
+                mapParams = ","
+            mapParams +=   var1 + ","
+            vars = vars+1
+         
+        # Remove the last comma
+        char_to_remove = ","
+        if mapParams != "":
+            if mapParams[-1] == char_to_remove: 
+                mapParams = mapParams[:-1]
+
+       
         if isinstance(operation.right, str):
 
             # Code for daskbag (only sum considered)
             
-            print("-----------------")
             
-            s = ".fold("+self.program_info.all_functions[0].name+")"
+
+            
+            s = ".fold("+self.program_info.all_functions[0].name + mapParams + ")"
             #s = ".map(lambda accum," + operation.right + ": accum" + operation.operation + str(operation.right) + ")"
             #s =  ".reduction(sum,sum).compute()"
 
             # Uncomment the below line for spark
             #s = ".reduce(lambda accum," + operation.right + ": accum" + operation.operation + str(operation.right) + ")"
         else:
-
+            
+           
             # Code for daskbag
-            s = ".fold("+self.program_info.all_functions[0].name+")"
-
+            s = ".map("+self.program_info.all_functions[0].name + mapParams + ")"
+            
             # Uncomment the below line for spark
-            s = ".reduce(lambda accum," + operation.left + ": accum " + operation.operation + operation.left + operation.operation + str(
-                operation.right) + ")"
+            
+            #s = ".reduce(lambda accum," + operation.left + ": accum " + operation.operation + operation.left + operation.operation + str(operation.right) + ")"
+            
             
         self.mapper_list.add_mapper(s)
 
@@ -271,7 +299,7 @@ class CustomLoopInformation:
                 op = tmp_node.op
                 right = self.variable_check(tmp_node.right)
                 # target = tmp_node.targets[0].id
-                print(left, op, right, "")
+                #removed print(left, op, right, "")
                 binary_operation = BinOps(left, right, "", op)
                 binary_operation.get_operation_from_operator()
                 self.mapper_only_codegen(binary_operation)
@@ -280,9 +308,11 @@ class CustomLoopInformation:
     def getAllMappers(self):
         all_mappers = [self.input_dataset]
         all_mappers.append(self.program_info.all_functions[-1].input_variable[0][0].arg)
+     
         return all_mappers
 
     def get_operation_from_operator(self, operator):
+        
         if isinstance(operator, ast.Add):
             return "+"
         elif isinstance(operator, ast.Sub):
@@ -329,7 +359,7 @@ class CustomLoopInformation:
         self.parallilizeList = self.getAllMappers()
         self.complexExpression = ""
         self.convert_complex_binOps(exp.body[0].value, flag)
-        print(self.complexExpression)
+        #removed print(self.complexExpression)
         expression_list = self.complexExpression.split()
         for i, lit in enumerate(expression_list):
             if lit == accum:
@@ -345,20 +375,27 @@ class CustomLoopInformation:
         return
 
     def reducer_binary_ops(self, exp):
-        print("Mapper and Reducer")
+        
         #if len(exp.args.args) is 3:
+
+        
         if len(exp.args.args) == 3:
+            
             self.reducer_binary_multiple_map(exp)
             return 2
         for tmp_node in ast.walk(exp):
             if isinstance(tmp_node, ast.BinOp):
+
+                
+
                 left = self.variable_check(tmp_node.left)
                 op = tmp_node.op
                 right = self.variable_check(tmp_node.right)
                 # target = tmp_node.targets[0].id
-                print(left, op, right, "")
+                #removed print(left, op, right, "")
                 binary_operation = BinOps(left, right, "", op)
                 binary_operation.get_operation_from_operator()
+                               
                 self.reduce_codegen(binary_operation)
         return 1
 
@@ -366,22 +403,29 @@ class CustomLoopInformation:
         
         #if self.udf_call_type is "mExpression" and self.filter_info.has_if is False:
         if self.udf_call_type == "mExpression" and self.filter_info.has_if == False:
-            self.mapper_only(node)
             
-
+            self.mapper_only(node)
             return 0
 
         #elif self.udf_call_type is "mExpression" and self.filter_info.has_if is True:
         elif self.udf_call_type == "mExpression" and self.filter_info.has_if == True:
             self.final_codegen_value = self.mapper_filter_ops(node)
+            
             return 1
         else:
+            
             type = 2
             if not self.filter_info.has_if:
+                
                 type = 3
+            
             ch = self.reducer_binary_ops(node)
+            
+            
             if ch == 1:
+                
                 self.final_codegen_value = self.mapper_filter_ops(node)
                 return type
             else:
+                
                 return 5

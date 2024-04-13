@@ -12,11 +12,13 @@ class ProgramInformation:
         self.filepath = filepath
 
     def get_function_node_by_name(self, name):
+        
         for tmp in self.all_functions:
             if tmp.name == name:
                 return tmp.node
     
     def get_function_node_by_name_func(self, name):
+        
         for tmp in self.all_functions:
             if tmp.name == name:
                 return tmp

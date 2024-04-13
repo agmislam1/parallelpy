@@ -3,20 +3,19 @@ import sys
 
 def processParams(args):
 
-    workers = 32
+    workers = 36
     partition = 100
     # if parameters are not passed, default settings will be used
-    if(len(args)>=2):
+    if(len(args)>=1):
         workers = int(args[0])
-        partition = int(args[1])
+        #partition = int(args[1])
      
-    return workers, partition
+    return workers
    
-def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
+def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data,map_operation=None):
     
     count = 0
     complete_code = []
-
     
 
     
@@ -27,7 +26,10 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
 
     finalbag = target +"_bag_"
 
-   
+    inputfilename = "input.csv"
+    daskread = ".read_text('" + inputfilename +"',blocksize=blocksize).str.strip()\n"
+    daskmap = ".map(lambda x: [int(num) for num in x.split(',')])\n"
+    daskflatten = ".flatten()\n\n"
     
     
     if len(input_data) == 0:
@@ -35,12 +37,17 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
         #tmp = final_RDD + str(count) + " = sc.parallelize(" + target + ")"
 
         ## For Dask
-       
-        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + target + ",npartitions=partition)"
+        tmp = finalbag + str(count) +" = "+ bagimport + daskread
+        tmp += "\t" + finalbag + str(count) +" = " + finalbag + str(count) +  daskmap
+        tmp += "\t" + finalbag + str(count) +" = " + finalbag + str(count) +  daskflatten
+        #tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + target + ",npartitions=partition)"
     else:
         # Code added for dask bag
-       
-        tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + input_data + ",npartitions=partition)"
+        
+        tmp = finalbag + str(count) +" = "+ bagimport + daskread
+        tmp += "\t" + finalbag + str(count) +" = " + finalbag + str(count) +  daskmap
+        tmp += "\t" + finalbag + str(count) +" = " + finalbag + str(count) +  daskflatten       
+        #tmp = finalbag + str(count) + " = "+bagimport+".from_sequence(" + input_data + ",npartitions=partition)"
 
         #Uncomment the below line for pyspark
         #tmp = final_RDD + str(count) + " = sc.parallelize(" + input_data + ")"
@@ -50,44 +57,74 @@ def codegen_complete_mapper(mapfunc,target, mapper_operations, input_data):
     
 
 
-    option = 1 # [0] indicates mapping function
+    #option = 1 # [0] indicates mapping function
     # option for map function or lambda in dask
+
+    mapperSet = set(mapper_operations[:-1])
+    option = len(mapperSet)
     
-    if option == 0:
+    aggregate = ""
+    if not map_operation==None:
+        aggregate = "." +  map_operation + "()"
+
+
+    if option <= -1:
         
-        tmp = finalbag + str(count) + " = " + finalbag + str(count - 1)+".map("+mapfunc+")"
-        complete_code.append(tmp)
+        # check for the inclusion of topk
+        if map_operation.startswith("topk"):
+            tmp = finalbag + str(count) + " = " + finalbag + str(count - 1)+".map("+mapfunc+")" + aggregate
+            complete_code.append(tmp)
+            tmp = finalbag + str(count) + " = " + finalbag + str(count - 1)+"." + map_operation
+            complete_code.append(tmp)
+
+           
+        else:
+            tmp = finalbag + str(count) + " = " + finalbag + str(count - 1)+".map("+mapfunc+")" + aggregate
+            complete_code.append(tmp)
         
         # Code added for dask bag (no option for pyspark)
-        tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count) + ".compute(num_workers=workers)"
-
+        #tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count) + ".compute(num_workers=workers)"
+        #complete_code.append(tmp)
     else:
-       
-        for each_mapper in mapper_operations[:-1]:
+        #count = 0
+        
+        for each_mapper in mapperSet:
+        #for each_mapper in mapper_operations[:-1]:
 
             # Code added for dask bag
-                    
-           
+            # check for the inclusion of topk
             
-            tmp = finalbag + str(count) + " = " + finalbag + str(count - 1) + each_mapper
+            if map_operation.startswith("topk"):
+                tmp = finalbag + str(count) + " = " + finalbag + str(count - 1) + each_mapper 
+                complete_code.append(tmp)
+                tmp = finalbag + str(count) + " = " + finalbag + str(count - 1) + "." + map_operation
+                complete_code.append(tmp)
+                
+            else:
+
+                tmp = finalbag + str(count) + " = " + finalbag + str(count - 1) + each_mapper + aggregate
+                complete_code.append(tmp)
+            #tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count - 1) + mapper_operations[-1] + ".compute(num_workers=workers)"
 
             #Uncomment the below line for pyspark
             #tmp = final_RDD + str(count) + " = " + final_RDD + str(count - 1) + each_mapper
             count += 1
         
-            #complete_code.append(tmp)
+            
 
 
         # Code added for dask bag
-        tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count - 1) + mapper_operations[-1] + ".compute(num_workers=workers)"
+        #tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count - 1) + mapper_operations[-1] + ".compute(num_workers=workers)"
         #Uncomment the below line for pyspark
         #tmp = target + " = " + final_RDD + str(count - 1) + mapper_operations[-1]
 
+    tmp = "with Client(n_workers=workers) as client:\n\t\t" + target + " = " + finalbag + str(count - 1) + ".compute(num_workers=workers)"
     complete_code.append(tmp)
     return complete_code
 
 
 def codegen_complete_mapper_filter(target, mapper_operations):
+    
     count = 0
     complete_code = []
     final_RDD = target + "_RDD_"
@@ -107,7 +144,7 @@ def codegen_complete_mapper_filter(target, mapper_operations):
 
 
 def codegen_complete_reducer(target, mr_operations, input_datset):
-    print("Only reducer")
+    
     count = 0
     complete_code = []
     final_RDD = target
@@ -130,6 +167,8 @@ def codegen_complete_reducer(target, mr_operations, input_datset):
 
 
 def codegen_complete_reducer_multiple_mapper_test(target, list_of_mapper):
+
+    
     count = 0
     complete_code = []
     final_RDD = target + "_RDD_"
@@ -151,12 +190,12 @@ def codegen_complete_reducer_multiple_mapper_test(target, list_of_mapper):
 # Modified Code
 def codegen_complete_reducer_multiple_mapper(target, list_of_mapper):
     
+    
     count = 0
     complete_code = []
     final_RDD = target + "_RDD_"
     for i in list_of_mapper:
-        print("-------------------list of mapper------------------------")
-        print(i)
+        
         tmp = final_RDD + str(count) + " = sc.parallelize(" + i + ")"
         complete_code.append(tmp)
         count += 1
@@ -190,18 +229,21 @@ def code_gen_file(filepath, intial_num, final_num, codelist, type, function_def=
 
     args = sys.argv[1:]    
     # read the dask configuration parameters
-    workers, partition = processParams(args)
+    workers = processParams(args)
 
     
     fout.write("workers="+ str(workers)+"\n")
-    fout.write("partition="+ str(partition)+"\n")
+    #fout.write("partition="+ str(partition)+"\n")
+    fout.write("blocksize = '256MB'\n")
 
     #Uncomment the below line for pyspark
     #fout.write("import pyspark as ps\n")
+    
     if type == 5:
         for each in function_def:
             fout.write(each)
     for i, line in enumerate(fin):
+        
         if not (intial_num <= i + 1 <= final_num):
             fout.write(line)
         else:

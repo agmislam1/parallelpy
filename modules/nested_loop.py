@@ -12,6 +12,7 @@ class NestedLoop:
         self.data_2 = ""
         self.code_generation = []
         self.ops_body = ast.If
+        self.return_val = "dask_bag_result"
         # check Number
 
     def variable_check(self, operand):
@@ -35,14 +36,45 @@ class NestedLoop:
         self.code_gen_static()
 
     def code_gen_static(self):
-        self.code_generation.append(self.data_1 + "_RDD = sc.parallelize(" + self.data_1 + ")")
-        self.code_generation.append(self.data_2 + "_RDD = sc.parallelize(" + self.data_2 + ")")
+
+        # filenames are passed for dask
+
+        self.code_generation.append(self.data_1 + "_bag = daskbag.read_text('join1.csv',blocksize=blocksize).str.strip()")
+        self.code_generation.append(self.data_1 + "_bag = " + self.data_1 + "_bag.map(lambda x: tuple(map(str, x.strip().split(',')))).map(lambda x: (x[0], int(x[1])))")
+
+        self.code_generation.append("\n")
+        
+        self.code_generation.append(self.data_2 + "_bag = daskbag.read_text('join2.csv',blocksize=blocksize).str.strip()")
+        self.code_generation.append(self.data_2 + "_bag = " + self.data_2 + "_bag.map(lambda x: tuple(map(str, x.strip().split(',')))).map(lambda x: (x[0], int(x[1])))")
+        
+        self.code_generation.append("\n")
+        
+
+        # Uncomment the below lines for pyspark
+        #self.code_generation.append(self.data_1 + "_RDD = sc.parallelize(" + self.data_1 + ")")
+        #self.code_generation.append(self.data_2 + "_RDD = sc.parallelize(" + self.data_2 + ")")
         if not self.is_join:
+
+            # Code for dask bag
             self.code_generation.append(
-                self.data_1 + "_RDD_combine =" + self.data_1 + "_RDD.cartesian(" + self.data_2 + "_RDD)")
+                self.data_1 + "_bag_result =" + self.data_1 + "_bag.product(" + self.data_2 + "_bag)")
+            #self.code_generation.append(self.return_val + " = bag_product.map(lambda x: (x[0][0], x[0][1] , x[1][1]))")
+
+            
+
+            # Uncomment the below line for pyspark
+            #self.code_generation.append(
+            #    self.data_1 + "_RDD_combine =" + self.data_1 + "_RDD.cartesian(" + self.data_2 + "_RDD)")
         else:
+
+            # Code for Dask Bag
             self.code_generation.append(
-                self.data_1 + "_RDD_combine =" + self.data_1 + "_RDD.join(" + self.data_2 + "_RDD)")
+                self.data_1 + "_bag_result =" + self.data_1 + "_bag.product(" + self.data_2 + "_bag)")
+            #self.code_generation.append(self.return_val + " = bag_product.map(lambda x: (x[0][0], x[0][1] , x[1][1]))")
+
+            # Uncomment the below line for pyspark
+            #self.code_generation.append(
+            #    self.data_1 + "_RDD_combine =" + self.data_1 + "_RDD.join(" + self.data_2 + "_RDD)")
 
     def get_all_operation(self):
         for tmp in ast.walk(self.ops_body):
@@ -58,20 +90,40 @@ class NestedLoop:
                         binary_operation.get_operation_from_operator()
                         self.add_operations(binary_operation)
             except:
-                print("")
+                pass
 
     def convert_operations_mapper_reducer(self):
 
         
-        var1 = self.data_1 + "_RDD_combine =" + self.data_1+ "_RDD_combine"
+        #var1 = self.data_1 + "_RDD_combine =" + self.data_1+ "_RDD_combine"
+        var1 = self.data_1 + "_bag_result"
+        var3 = "result"
+        
+
         for each_op in self.operations:
-            # num = num_RDD_0.join(num_RDD_1).map(lambda x: (x[0], x[1][0] +x[1][1]) ).collect()
-            tmp_code = var1 + ".map(lambda x: (x[0],x[1][0]" + each_op.operation + "x[1][1])).collect()"
+            tmp_code = var1 + " = " + var1 + ".filter(lambda x: x[0][0] == x[1][0]).map(lambda x: (x[0][0], x[0][1] + x[1][1]))"
+            
+
+            # Uncomment the below line for pyspark
+            #tmp_code = var1+ " = "+ var1 + ".map(lambda x: (x[0],x[1][0]" + each_op.operation + "x[1][1])).collect()"
             self.code_generation.append(tmp_code)
+
+        self.code_generation.append("with Client(n_workers=workers) as client:")
+       
+
         if len(self.operations) != 0:
-            self.code_generation.append("return "+ self.data_1 + "_RDD_combine")
+
+            self.code_generation.append("\t" + var3 + " = " + var1 + ".compute()")
+            self.code_generation.append("return " + var3)
+            # Uncomment the below line for pyspark
+            #self.code_generation.append("return "+ self.data_1 + "_RDD_combine")
         else:
-            self.code_generation.append("return " + self.data_1 + "_RDD_combine.collect()")
+
+            # Code for Dask Bag
+            self.code_generation.append("\t" + var3 + " = " + var1 + ".compute()")
+            self.code_generation.append("return " + var3)
+            # Uncomment the below line for pyspark
+            #self.code_generation.append("return " + self.data_1 + "_RDD_combine.collect()")
         return self.code_generation
 
     
